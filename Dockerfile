@@ -1,44 +1,42 @@
-# Dockerfile for Laravel (PHP 8.2, Composer, Node for asset build)
-FROM php:8.2-fpm
+FROM php:8.3-cli
 
-# Install system dependencies
-RUN apt-get update \
-    && apt-get install -y \
-        git \
-        curl \
-        libpng-dev \
-        libonig-dev \
-        libxml2-dev \
-        zip \
-        unzip \
-        npm \
-        nodejs \
-        libzip-dev \
-        libpq-dev \
-        libjpeg-dev \
-        libfreetype6-dev \
-        libmcrypt-dev \
-        libssl-dev \
-    && docker-php-ext-install pdo_mysql mbstring exif pcntl bcmath gd zip
+# Autoriser Composer à s'exécuter en root
+ENV COMPOSER_ALLOW_SUPERUSER=1
 
-# Install Composer
+# Installer les dépendances système
+RUN apt-get update && apt-get install -y \
+    git \
+    curl \
+    libpng-dev \
+    libonig-dev \
+    libxml2-dev \
+    zip \
+    unzip \
+    libzip-dev \
+    libpq-dev \
+    libjpeg-dev \
+    libfreetype6-dev \
+    libicu-dev \
+    libssl-dev \
+    && docker-php-ext-install pdo_mysql mbstring exif pcntl bcmath gd intl zip \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
+
+# Copier Composer depuis l'image officielle
 COPY --from=composer:2.7 /usr/bin/composer /usr/bin/composer
 
-# Set working directory
+# Définir le dossier de travail
 WORKDIR /var/www
 
-# Copy existing application
-COPY . /var/www
+# Copier le projet Laravel
+COPY . .
 
-# Install PHP dependencies
-RUN composer install --no-interaction --prefer-dist --optimize-autoloader
+# Créer les répertoires nécessaires avec les bonnes permissions
+RUN mkdir -p storage/framework/{cache,sessions,views} bootstrap/cache \
+    && chown -R www-data:www-data /var/www \
+    && chmod -R 775 storage bootstrap/cache
 
-# Install Node dependencies and build assets
-RUN npm install && npm run build
+# Installer les dépendances PHP sans exécuter les scripts
+RUN composer install --no-interaction --prefer-dist --optimize-autoloader --no-scripts
 
-# Set permissions
-RUN chown -R www-data:www-data /var/www/storage /var/www/bootstrap/cache
-
-# Expose port 9000 and start php-fpm server
-EXPOSE 9000
-CMD ["php-fpm"]
+# Exposer le port 8000
+EXPOSE 8000
